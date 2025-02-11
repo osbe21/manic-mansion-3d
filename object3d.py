@@ -1,4 +1,5 @@
 import numpy as np
+import pygame
 import pywavefront
 from transformations import *
 from config import *
@@ -13,7 +14,7 @@ class Object3D:
 
     @property
     def forward(self):
-        return np.dot(FORWARD, self.rotation_matrix)[:3]
+        return np.dot(self.rotation_matrix, FORWARD)[:3]
 
     @property
     def translation_matrix(self):
@@ -111,3 +112,38 @@ class Mesh(Object3D):
         self.vertices = scene.vertices
         self.faces = faces
         self.diffuse = np.array(diffuse) * 255
+
+
+class Player(Object3D):
+    def __init__(self, speed, rotation_speed, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.speed = speed
+        self.rotation_speed = rotation_speed
+
+
+    def update_rotation(self, deltaTime):
+        keys = pygame.key.get_pressed()
+
+        hor = keys[pygame.K_RIGHT] - keys[pygame.K_LEFT]
+        ver = keys[pygame.K_UP] - keys[pygame.K_DOWN]
+
+        self.rotation[0] += ver * self.rotation_speed * deltaTime
+        self.rotation[1] -= hor * self.rotation_speed * deltaTime 
+
+
+    def update_position(self, deltaTime):
+        keys = pygame.key.get_pressed()
+
+        dx = keys[pygame.K_d] - keys[pygame.K_a]
+        dz = keys[pygame.K_s] - keys[pygame.K_w]
+
+        if dx == 0 and dz == 0:
+            return
+
+        movement = np.array([dx, 0, dz], dtype=DTYPE)
+        movement /= np.linalg.norm(movement)
+        # TODO: Skriv om til å bruke trig-funksjoner i stedet for å regne ut matrisen hver frame
+        movement @= y_rotation_matrix(self.rotation[1])[:3, :3].T
+
+        self.position += movement * deltaTime

@@ -9,10 +9,12 @@ class Renderer:
         # Init pygame
         pygame.init()
         pygame.display.set_caption(window_caption)
+        pygame.event.set_grab(True)
+        pygame.mouse.set_visible(False)
 
         self.SCREEN_SIZE = (width, height)
 
-        self.screen = pygame.display.set_mode((width, height))
+        self.screen = pygame.display.set_mode((width, height), pygame.FULLSCREEN)
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont('Consolas', 30)
         self.bg_color : tuple[int] = bg_color
@@ -42,8 +44,9 @@ class Renderer:
 
         while self.running:
             for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    self.running = False
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        self.running = False
 
             self.update()
             
@@ -99,13 +102,15 @@ class Renderer:
             sorted_face_indeces = np.argsort(avg_z)[::-1]
 
             for face_index in sorted_face_indeces:
+                face = filtered_faces[face_index]
                 face_normal = filtered_face_normals[face_index, :3]
 
                 # Backface culling
+                # NOTE: camera_forward tar bare hensyn til retningen kameraet ser, ikke fra hvilken vinkel
+                # Dette gjør at vi noen ganger clipper trekanter som ikke skal clippes, men better safe than sorry
                 if np.dot(face_normal, camera_forward) <= 0:
                     continue
-
-                face = filtered_faces[face_index]
+                
                 triangle = np.array([transformed_vertices[idx] for idx in face])
 
                 lambert = np.dot(face_normal, self.light_dir)
@@ -125,20 +130,3 @@ class Renderer:
     def update(self):
         pass
 
-
-class Game(Renderer):
-    def init(self):
-        self.mesh = Mesh(path="models/stanford.obj", load_from_file=True)
-
-        self.mesh.scale *= 15
-        self.mesh.position[2] -= 1.5
-        self.mesh.position[1] -= .3
-        self.mesh.scale *= .2
-
-        self.add_mesh(self.mesh)
-
-    def update(self):
-        self.mesh.rotation[1] += 30 * self.deltaTime
-    
-
-Game(800, 600, light_dir=[.3, -1, .1], window_caption="Sauespill")
