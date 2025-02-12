@@ -34,13 +34,15 @@ class Object3D:
 
 
 class Mesh(Object3D):
-    def __init__(self, vertices=[], faces=[], path="", load_from_file=False, color=(255, 255, 255), *args, **kwargs):
+    def __init__(self, vertices=[], faces=[], path="", load_from_file=True, color=(255, 255, 255), render_behind=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self._vertices : np.ndarray = None
         self._vertices_4d : np.ndarray = None
         self._faces : np.ndarray = np.array(faces)
         self._face_normals : np.ndarray = None
+
+        self.render_behind = render_behind
 
         self.diffuse = np.array(color)
 

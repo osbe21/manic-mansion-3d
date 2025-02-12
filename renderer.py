@@ -63,18 +63,16 @@ class Renderer:
     
     def render(self):
         view_projection_matrix = self.projection_matrix @ np.linalg.inv(self.camera.transformation_mat)
-        camera_forward = self.camera.forward
 
         sorted_mesh_list = sorted(self.mesh_list, 
-                                  key=lambda mesh: np.linalg.norm(mesh.position - self.camera.position),
+                                  key=lambda mesh: 9999 if mesh.render_behind else np.linalg.norm(mesh.position - self.camera.position),
                                   reverse=True)
 
         for mesh in sorted_mesh_list:
             transformed_vertices = mesh.vertices_4d.copy()
-            transformed_normals = mesh.face_normals.copy()
 
-            # Transformer face normalene
-            transformed_normals @= mesh.rotation_matrix.T
+            transformed_normals = mesh.face_normals @ mesh.rotation_matrix
+
 
             mvp_matrix = view_projection_matrix @ mesh.transformation_mat
 
@@ -112,19 +110,20 @@ class Renderer:
 
             filtered_faces = mesh.faces[inside_mask]
             filtered_normals = transformed_normals[inside_mask]
+
             for face_index in sorted_face_indeces:
                 face = filtered_faces[face_index]
-                face_normal = filtered_normals[face_index, :3]
+                normal = filtered_normals[face_index, :3]
 
                 # Backface culling
                 # NOTE: camera_forward tar bare hensyn til retningen kameraet ser, ikke fra hvilken vinkel
                 # Dette gjør at vi noen ganger clipper trekanter som ikke skal clippes, men better safe than sorry
-                if np.dot(face_normal, camera_forward) <= 0:
-                    continue
+                # if projected_normal[2] <= 0:
+                #     continue
                 
                 triangle = np.array([transformed_vertices[idx] for idx in face])
 
-                lambert = np.dot(face_normal, self.light_dir)
+                lambert = np.dot(normal, self.light_dir)
                 lambert = max(lambert, 0.1)
 
                 diffuse = mesh.diffuse * lambert
@@ -132,8 +131,8 @@ class Renderer:
                 pygame.draw.polygon(self.screen, diffuse, triangle[:, :2])
 
 
-    def add_mesh(self, mesh):
-        self.mesh_list.append(mesh)
+    def add_mesh(self, *args):
+        self.mesh_list.extend(args)
 
     def init(self):
         pass
@@ -141,3 +140,4 @@ class Renderer:
     def update(self):
         pass
 
+import main
