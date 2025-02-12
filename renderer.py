@@ -9,7 +9,6 @@ class Renderer:
         # Init pygame
         pygame.init()
         pygame.display.set_caption(window_caption)
-        pygame.event.set_grab(True)
         pygame.mouse.set_visible(False)
 
         self.SCREEN_SIZE = (width, height)
@@ -66,17 +65,42 @@ class Renderer:
         view_projection_matrix = self.projection_matrix @ np.linalg.inv(self.camera.transformation_mat)
         camera_forward = self.camera.forward
 
-        for mesh in self.mesh_list:
+        sorted_mesh_list = sorted(self.mesh_list, 
+                                  key=lambda mesh: np.linalg.norm(mesh.position - self.camera.position),
+                                  reverse=True)
+
+        for mesh in sorted_mesh_list:
             transformed_vertices = mesh.vertices_4d.copy()
             transformed_normals = mesh.face_normals.copy()
+
+            # Transformer face normalene
+            transformed_normals @= mesh.rotation_matrix.T
 
             mvp_matrix = view_projection_matrix @ mesh.transformation_mat
 
             # Transformer til clip space
             transformed_vertices @= mvp_matrix.T
 
-            # Del på w
+            # Del på w (ekte clip space)
             transformed_vertices[:] = transformed_vertices / transformed_vertices[:, 3:4]
+            
+            # Lag en mask for å culle alle faces som er delvis eller helt ute av NDC
+            # TODO?: clip alle faces utenfor NDC
+            faces_ndc = transformed_vertices[mesh.faces]
+            
+            inside_mask = np.all(
+                (faces_ndc[:, :, 0] >= -1) & (faces_ndc[:, :, 0] <= 1) &
+                (faces_ndc[:, :, 1] >= -1) & (faces_ndc[:, :, 1] <= 1) &
+                (faces_ndc[:, :, 2] >= -1) & (faces_ndc[:, :, 2] <= 1),
+                axis=1
+            )
+
+            # Sorterer alle faces, painters algorithm
+            # TODO?: Lag bybdebuffer?
+            z_values = transformed_vertices[mesh.faces][inside_mask][:, :, 2]
+            avg_z = z_values.mean(axis=1)
+            
+            sorted_face_indeces = np.argsort(avg_z)[::-1]
 
             # Gjør om fra clip space til screen space
             transformed_vertices[:, 0] += 1
@@ -85,25 +109,12 @@ class Renderer:
             transformed_vertices[:, 1] = 1 - transformed_vertices[:, 1]
             transformed_vertices[:, 1] *= (self.SCREEN_SIZE[1] / 2)
 
-            # Transformer face normalene
-            transformed_normals @= mesh.rotation_matrix.T
 
-            # Filtrer ut faces utenfor NDC
-            # TODO: sriv om til å clippe alle faces utenfor NDC
-            z_values = transformed_vertices[mesh.faces][:, :, 2]
-            avg_z = z_values.mean(axis=1)
-            
-            valid_mask = avg_z <= 1
-
-            avg_z = avg_z[valid_mask]
-            filtered_faces = mesh.faces[valid_mask]
-            filtered_face_normals = transformed_normals[valid_mask]
-            
-            sorted_face_indeces = np.argsort(avg_z)[::-1]
-
+            filtered_faces = mesh.faces[inside_mask]
+            filtered_normals = transformed_normals[inside_mask]
             for face_index in sorted_face_indeces:
                 face = filtered_faces[face_index]
-                face_normal = filtered_face_normals[face_index, :3]
+                face_normal = filtered_normals[face_index, :3]
 
                 # Backface culling
                 # NOTE: camera_forward tar bare hensyn til retningen kameraet ser, ikke fra hvilken vinkel
