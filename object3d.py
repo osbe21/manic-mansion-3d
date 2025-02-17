@@ -29,7 +29,7 @@ class Object3D:
         return scaling_matrix(self.scale)
     
     @property
-    def transformation_mat(self):
+    def transformation_matrix(self):
         return self.translation_matrix @ self.rotation_matrix @ self.scaling_matrix
 
 
@@ -92,7 +92,8 @@ class Mesh(Object3D):
             normal = np.cross(tangent_1, tangent_2)
             normal /= np.linalg.norm(normal)
             
-            normals.append(np.array([*normal, 1]))
+            # w = 0, sånn at vektorene ikke transleres under mvp
+            normals.append(np.array([*normal, 0]))
         
         self._face_normals = np.array(normals)
 

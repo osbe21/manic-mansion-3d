@@ -2,7 +2,7 @@ import pygame
 import numpy as np
 from object3d import *
 from config import *
-    
+
 
 class Renderer:
     def __init__(self, width, height, fov=60, bg_color=(80, 80, 80), light_dir=[0, -1, 0], fps=60, window_caption=""):
@@ -13,7 +13,7 @@ class Renderer:
 
         self.SCREEN_SIZE = (width, height)
 
-        self.screen = pygame.display.set_mode((width, height), pygame.FULLSCREEN)
+        self.screen = pygame.display.set_mode((width, height), pygame.NOFRAME)
         self.clock = pygame.time.Clock()
         self.font = pygame.font.SysFont('Consolas', 30)
         self.bg_color : tuple[int] = bg_color
@@ -21,7 +21,7 @@ class Renderer:
         self.camera = Object3D()
         self.deltaTime = 1/fps
         self.running = True
-        self.light_dir = np.array(light_dir, dtype=DTYPE)
+        self.light_dir = np.array([*light_dir, 0], dtype=DTYPE)
         self.light_dir /= np.linalg.norm(light_dir)
 
 
@@ -62,7 +62,8 @@ class Renderer:
 
     
     def render(self):
-        view_projection_matrix = self.projection_matrix @ np.linalg.inv(self.camera.transformation_mat)
+        view_matrix = np.linalg.inv(self.camera.transformation_matrix)
+        view_projection_matrix = self.projection_matrix @ view_matrix
 
         sorted_mesh_list = sorted(self.mesh_list, 
                                   key=lambda mesh: 9999 if mesh.render_behind else np.linalg.norm(mesh.position - self.camera.position),
@@ -71,10 +72,7 @@ class Renderer:
         for mesh in sorted_mesh_list:
             transformed_vertices = mesh.vertices_4d.copy()
 
-            transformed_normals = mesh.face_normals @ mesh.rotation_matrix
-
-
-            mvp_matrix = view_projection_matrix @ mesh.transformation_mat
+            mvp_matrix = view_projection_matrix @ mesh.transformation_matrix
 
             # Transformer til clip space
             transformed_vertices @= mvp_matrix.T
@@ -86,16 +84,26 @@ class Renderer:
             # TODO?: clip alle faces utenfor NDC
             faces_ndc = transformed_vertices[mesh.faces]
             
-            inside_mask = np.all(
+            inside_ndc_mask = np.all(
                 (faces_ndc[:, :, 0] >= -1) & (faces_ndc[:, :, 0] <= 1) &
                 (faces_ndc[:, :, 1] >= -1) & (faces_ndc[:, :, 1] <= 1) &
                 (faces_ndc[:, :, 2] >= -1) & (faces_ndc[:, :, 2] <= 1),
                 axis=1
             )
 
+            # Få normaler i view space
+            # transformed_normals = mesh.face_normals @ (view_matrix @ mesh.transformation_matrix).T
+
+            # frontface_mask = transformed_normals[:, 2] < 0
+
+            # Mask for frontface normaler og faces innenfor ndc
+            face_mask = inside_ndc_mask # & frontface_mask
+
+            filtered_faces = transformed_vertices[mesh.faces[face_mask]]
+
             # Sorterer alle faces, painters algorithm
             # TODO?: Lag bybdebuffer?
-            z_values = transformed_vertices[mesh.faces][inside_mask][:, :, 2]
+            z_values = filtered_faces[:, :, 2]
             avg_z = z_values.mean(axis=1)
             
             sorted_face_indeces = np.argsort(avg_z)[::-1]
@@ -107,29 +115,19 @@ class Renderer:
             transformed_vertices[:, 1] = 1 - transformed_vertices[:, 1]
             transformed_vertices[:, 1] *= (self.SCREEN_SIZE[1] / 2)
 
+            # Precompute lambert verdier
+            transformed_normals = mesh.face_normals[face_mask] @ mesh.transformation_matrix.T
+            lambert_values = np.clip(np.dot(transformed_normals, self.light_dir), 0, 1)
 
-            filtered_faces = mesh.faces[inside_mask]
-            filtered_normals = transformed_normals[inside_mask]
+            tris = transformed_vertices[mesh.faces[face_mask]][:, :, :2]
 
             for face_index in sorted_face_indeces:
-                face = filtered_faces[face_index]
-                normal = filtered_normals[face_index, :3]
+                tri = tris[face_index]
 
-                # Backface culling
-                # NOTE: camera_forward tar bare hensyn til retningen kameraet ser, ikke fra hvilken vinkel
-                # Dette gjør at vi noen ganger clipper trekanter som ikke skal clippes, men better safe than sorry
-                # if projected_normal[2] <= 0:
-                #     continue
-                
-                triangle = np.array([transformed_vertices[idx] for idx in face])
+                diffuse = mesh.diffuse * lambert_values[face_index]
 
-                lambert = np.dot(normal, self.light_dir)
-                lambert = max(lambert, 0.1)
-
-                diffuse = mesh.diffuse * lambert
-
-                pygame.draw.polygon(self.screen, diffuse, triangle[:, :2])
-
+                pygame.draw.polygon(self.screen, diffuse, tri)
+    
 
     def add_mesh(self, *args):
         self.mesh_list.extend(args)
@@ -139,5 +137,3 @@ class Renderer:
 
     def update(self):
         pass
-
-import main
