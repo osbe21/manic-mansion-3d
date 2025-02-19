@@ -98,7 +98,7 @@ class Game(Renderer):
         position = [0, 0, self.WORLD_BOUNDS["z"]/2]
         rotation = [0, random() * 360, 0]
 
-        ghost = Mesh(path="models/ghost_lp.obj", position=position, rotation=rotation, scale=[.7]*3)
+        ghost = Mesh(path="models/ghost.obj", position=position, rotation=rotation, scale=[1.1]*3)
 
         self.ghosts.append(ghost)
         self.ghost_offsets.append(random())
@@ -107,16 +107,16 @@ class Game(Renderer):
     
     def update_ghosts(self):
         for ghost, offset in zip(self.ghosts, self.ghost_offsets):
-            ghost.position += -ghost.forward * 2 * self.deltaTime
+            ghost.position += ghost.forward * 2 * self.deltaTime
             ghost.position[1] = math.sin(pygame.time.get_ticks()/200 + offset) * .1
             
             if self.WORLD_BOUNDS["x"] < ghost.position[0] or ghost.position[0] < -self.WORLD_BOUNDS["x"]:
                 ghost.rotation[1] *= -1
-                ghost.position += -ghost.forward * 2 * self.deltaTime
+                ghost.position += ghost.forward * 2 * self.deltaTime
             
             if self.WORLD_BOUNDS["z"] + 4 > ghost.position[2] or ghost.position[2] > -4:
                 ghost.rotation[1] = 180 - ghost.rotation[1]
-                ghost.position += -ghost.forward * 2 * self.deltaTime
+                ghost.position += ghost.forward * 2 * self.deltaTime
 
 
     def detect_ghost_collision(self, collision_dist):

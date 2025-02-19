@@ -117,7 +117,7 @@ class Renderer:
 
             # Precompute lambert verdier
             transformed_normals = mesh.face_normals[face_mask] @ mesh.rotation_matrix.T
-            lambert_values = np.clip(np.dot(transformed_normals, self.light_dir) + .2, 0, 1)
+            lambert_values = np.clip(np.dot(transformed_normals, self.light_dir), .1, 1)
 
             tris = transformed_vertices[mesh.faces[face_mask]][:, :, :2]
 
