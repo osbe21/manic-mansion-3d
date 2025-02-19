@@ -4,7 +4,7 @@ import pywavefront
 from transformations import *
 from config import *
 
-FORWARD = np.array([0, 0, -1, 1])
+FORWARD = np.array([0, 0, -1, 0])
 
 class Object3D:
     def __init__(self, position=[0, 0, 0], rotation=[0, 0, 0], scale=[1, 1, 1]):
@@ -51,13 +51,16 @@ class Mesh(Object3D):
         else:
             self.vertices = vertices
 
+
     @property
     def vertices(self):
         return self._vertices
     
+
     @property
     def vertices_4d(self):
         return self._vertices_4d
+
 
     @vertices.setter
     def vertices(self, value):
@@ -73,9 +76,11 @@ class Mesh(Object3D):
         vertices4[:, 3] = 1 
         self._vertices_4d = vertices4
     
+
     @property
     def faces(self):
         return self._faces
+
 
     @faces.setter
     def faces(self, value):
@@ -102,6 +107,7 @@ class Mesh(Object3D):
     def face_normals(self):
         return self._face_normals
     
+
     def load_from_obj(self, path):
         scene = pywavefront.Wavefront(path, collect_faces=True, create_materials=True)
 
@@ -132,6 +138,7 @@ class Player(Object3D):
         ver = keys[pygame.K_UP] - keys[pygame.K_DOWN]
 
         self.rotation[0] += ver * self.rotation_speed * deltaTime
+        self.rotation[0] = max(-80, min(80, self.rotation[0]))
         self.rotation[1] -= hor * self.rotation_speed * deltaTime 
 
 
@@ -149,4 +156,4 @@ class Player(Object3D):
         # TODO: Skriv om til å bruke trig-funksjoner i stedet for å regne ut matrisen hver frame
         movement @= y_rotation_matrix(self.rotation[1])[:3, :3].T
 
-        self.position += movement * deltaTime
+        self.position += movement * self.speed * deltaTime

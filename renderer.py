@@ -15,7 +15,7 @@ class Renderer:
 
         self.screen = pygame.display.set_mode((width, height), pygame.NOFRAME)
         self.clock = pygame.time.Clock()
-        self.font = pygame.font.SysFont('Consolas', 30)
+        self.font = pygame.font.SysFont('Calibri', 40)
         self.bg_color : tuple[int] = bg_color
         self.mesh_list : list[Mesh] = []
         self.camera = Object3D()
@@ -27,8 +27,8 @@ class Renderer:
 
         aspect = width / height
         f = 1 / np.tan(np.radians(fov) / 2)
-        far = 1000
-        near = 0.1
+        far = 100
+        near = 0.01
         nf = 1 / (near - far)
 
         self.projection_matrix = np.array([
@@ -47,14 +47,14 @@ class Renderer:
                     if event.key == pygame.K_ESCAPE:
                         self.running = False
 
-            self.update()
             
             self.screen.fill(self.bg_color)
 
             self.render()
 
-            fps_text = self.font.render(f"FPS: {1/self.deltaTime:.0f}", 1, (0, 0, 0))
-            self.screen.blit(fps_text, (20, 20))
+            self.update()
+
+            self.blit_fps()
 
             pygame.display.flip()
 
@@ -65,7 +65,7 @@ class Renderer:
         view_matrix = np.linalg.inv(self.camera.transformation_matrix)
         view_projection_matrix = self.projection_matrix @ view_matrix
 
-        sorted_mesh_list = sorted(self.mesh_list, 
+        sorted_mesh_list = sorted(self.mesh_list,
                                   key=lambda mesh: 9999 if mesh.render_behind else np.linalg.norm(mesh.position - self.camera.position),
                                   reverse=True)
 
@@ -78,7 +78,7 @@ class Renderer:
             transformed_vertices @= mvp_matrix.T
 
             # Del på w (ekte clip space)
-            transformed_vertices[:] = transformed_vertices / transformed_vertices[:, 3:4]
+            transformed_vertices /= transformed_vertices[:, 3:4]
             
             # Lag en mask for å culle alle faces som er delvis eller helt ute av NDC
             # TODO?: clip alle faces utenfor NDC
@@ -97,7 +97,7 @@ class Renderer:
             # frontface_mask = transformed_normals[:, 2] < 0
 
             # Mask for frontface normaler og faces innenfor ndc
-            face_mask = inside_ndc_mask # & frontface_mask
+            face_mask = inside_ndc_mask #& frontface_mask
 
             filtered_faces = transformed_vertices[mesh.faces[face_mask]]
 
@@ -116,8 +116,8 @@ class Renderer:
             transformed_vertices[:, 1] *= (self.SCREEN_SIZE[1] / 2)
 
             # Precompute lambert verdier
-            transformed_normals = mesh.face_normals[face_mask] @ mesh.transformation_matrix.T
-            lambert_values = np.clip(np.dot(transformed_normals, self.light_dir), 0, 1)
+            transformed_normals = mesh.face_normals[face_mask] @ mesh.rotation_matrix.T
+            lambert_values = np.clip(np.dot(transformed_normals, self.light_dir) + .2, 0, 1)
 
             tris = transformed_vertices[mesh.faces[face_mask]][:, :, :2]
 
@@ -128,6 +128,9 @@ class Renderer:
 
                 pygame.draw.polygon(self.screen, diffuse, tri)
     
+    def blit_fps(self):
+        fps_text = self.font.render(f"FPS: {self.clock.get_fps():.0f}", 1, (0, 0, 0))
+        self.screen.blit(fps_text, (20, 20))
 
     def add_mesh(self, *args):
         self.mesh_list.extend(args)
